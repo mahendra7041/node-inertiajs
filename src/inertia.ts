@@ -175,8 +175,8 @@ export class Inertia {
         Object.entries(props).map(async ([key, value]) => {
           if (typeof value === "function") {
             const result = await value(
-              this.adapter.getRequest(),
-              this.adapter.getResponse()
+              this.adapter.request,
+              this.adapter.response
             );
             return this.#resolveProp(key, result);
           }
@@ -246,7 +246,7 @@ export class Inertia {
 
     return {
       component,
-      url: this.adapter.getUrl() || "/",
+      url: this.adapter.url || "/",
       version: this.config.assetsVersion,
       props: await this.#resolvePageProps(propsToResolve),
       clearHistory: this.#shouldClearHistory,
@@ -275,10 +275,7 @@ export class Inertia {
         : this.config.indexBuildEntrypoint;
 
     if (typeof entrypoint === "function") {
-      return await entrypoint(
-        this.adapter.getRequest(),
-        this.adapter.getResponse()
-      );
+      return await entrypoint(this.adapter.request, this.adapter.response);
     }
 
     return await readFile(entrypoint, "utf8");
@@ -308,7 +305,7 @@ export class Inertia {
     let template = await this.#resolveRootView();
     if (this.vite) {
       template = await this.vite.transformIndexHtml(
-        this.adapter.getUrl() || "/",
+        this.adapter.url || "/",
         template
       );
     }
@@ -329,7 +326,7 @@ export class Inertia {
           () => pageObject.ssrHead?.join("\n") || ""
         )
         .replace(this.#inertiaBodyTag, () => pageObject.ssrBody || "");
-      return this.adapter.html(html);
+      return this.adapter.send(html);
     }
 
     const id = this.config?.rootElementId || "app";
@@ -341,7 +338,7 @@ export class Inertia {
         this.#inertiaBodyTag,
         () => `<div id="${id}" data-page="${dataPage}"></div>` || ""
       );
-    return this.adapter.html(html);
+    return this.adapter.send(html);
   }
 
   /**
@@ -450,7 +447,7 @@ export class Inertia {
   location(url: string) {
     url = encodeURI(url);
     this.adapter.setHeader(InertiaHeaders.Location, url);
-    this.adapter.setStatus(409);
+    this.adapter.statusCode = 409;
   }
 
   redirect(statusOrUrl: number | string, url?: string) {
@@ -468,7 +465,7 @@ export class Inertia {
       throw new Error("Redirect URL is required");
     }
 
-    const method = this.adapter.getMethod() || "HEAD";
+    const method = this.adapter.method || "HEAD";
     if (status === 302 && ["PUT", "PATCH", "DELETE"].includes(method)) {
       status = 303;
     }

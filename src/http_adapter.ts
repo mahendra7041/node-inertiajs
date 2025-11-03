@@ -1,10 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Adapter } from "./adapter.js";
+import { Adapter } from "./index.js";
 
-/**
- * HTTP Adapter for Node.js IncomingMessage and ServerResponse
- * This is the default adapter that works with raw Node.js HTTP objects
- */
 export class HttpAdapter extends Adapter {
   constructor(
     protected request: IncomingMessage,
@@ -13,41 +9,43 @@ export class HttpAdapter extends Adapter {
     super();
   }
 
-  getRequest(): IncomingMessage {
-    return this.request;
-  }
-
-  getResponse(): ServerResponse {
-    return this.response;
-  }
-
-  getHeader(name: string): string | string[] | undefined {
-    return this.request.headers[name.toLowerCase()] as
-      | string
-      | string[]
-      | undefined;
-  }
-
-  setHeader(name: string, value: any): void {
-    this.response.setHeader(name, value);
-  }
-
-  getMethod(): string {
-    return this.request.method || "GET";
-  }
-
-  getUrl(): string {
+  get url(): string {
     return this.request.url || "/";
   }
 
-  json(data: Record<string, any>): void {
-    this.response.setHeader("Content-Type", "application/json");
-    this.response.end(JSON.stringify(data));
+  get method(): string {
+    return this.request.method || "GET";
   }
 
-  html(content: string): void {
+  get statusCode(): number {
+    return this.response.statusCode || 200;
+  }
+
+  set statusCode(code: number) {
+    this.response.statusCode = code;
+  }
+
+  getHeader(name: string): string | string[] | undefined {
+    return this.request.headers[name.toLowerCase()];
+  }
+
+  setHeader(name: string, value: string): void {
+    this.response.setHeader(name.toLowerCase(), value);
+  }
+
+  send(content: string): void {
     this.response.setHeader("Content-Type", "text/html");
     this.response.end(content);
+  }
+
+  json(data: unknown): void {
+    try {
+      this.response.setHeader("Content-Type", "application/json");
+      this.response.end(JSON.stringify(data));
+    } catch {
+      this.response.statusCode = 500;
+      this.response.end(JSON.stringify({ error: "Failed to serialize JSON" }));
+    }
   }
 
   redirect(statusOrUrl: number | string, url?: string): void {
@@ -62,28 +60,19 @@ export class HttpAdapter extends Adapter {
     }
 
     const encodedLocation = encodeURI(location);
-    this.response.statusCode = status;
-    this.response.setHeader("Location", encodedLocation);
+    this.statusCode = status;
+    this.setHeader("Location", encodedLocation);
 
-    const method = this.getMethod();
     const body = this.request?.headers["accept"]?.includes("html")
       ? `<p>${status}. Redirecting to <a href="${encodedLocation}">${encodedLocation}</a></p>`
       : `${status}. Redirecting to ${encodedLocation}`;
 
-    this.response.setHeader("Content-Length", Buffer.byteLength(body));
+    this.setHeader("Content-Length", Buffer.byteLength(body).toString());
 
-    if (method === "HEAD") {
+    if (this.method === "HEAD") {
       this.response.end();
     } else {
       this.response.end(body);
     }
-  }
-
-  setStatus(code: number): void {
-    this.response.statusCode = code;
-  }
-
-  end(data?: any): void {
-    this.response.end(data);
   }
 }

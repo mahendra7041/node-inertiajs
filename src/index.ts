@@ -7,6 +7,3 @@ export { Adapter } from "./adapter.js";
 export { HttpAdapter } from "./http_adapter.js";
 export * from "./props.js";
 export * from "./types.js";
-
-import "./types/express.js";
-import "./types/express-session.js";

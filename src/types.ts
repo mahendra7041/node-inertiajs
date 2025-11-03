@@ -20,6 +20,12 @@ export type HttpContext = {
 export type MaybePromise<T> = T | Promise<T>;
 
 /**
+ * Function that returns an entrypoint html string.
+ * Useful for templating engines like ejs, eta, liquid, etc.
+ */
+export type EntrypointFn = (req: any, res: any) => MaybePromise<string>;
+
+/**
  * Props that will be passed to inertia render method
  */
 export type PageProps = Record<string, unknown>;
@@ -41,8 +47,8 @@ export interface BaseInertiaConfig<T extends SharedData = SharedData> {
   assetsVersion?: string;
   encryptHistory?: boolean;
   sharedData?: T;
-  indexEntrypoint?: string;
-  indexBuildEntrypoint?: string;
+  indexEntrypoint?: string | EntrypointFn;
+  indexBuildEntrypoint?: string | EntrypointFn;
   ssrEnabled?: boolean;
   vite?: InlineConfig | ViteResolveConfig;
 }
@@ -79,8 +85,8 @@ export interface BaseResolvedConfig<T extends SharedData = SharedData> {
   assetsVersion: string;
   encryptHistory: boolean;
   sharedData?: T;
-  indexEntrypoint: string;
-  indexBuildEntrypoint: string;
+  indexEntrypoint: string | EntrypointFn;
+  indexBuildEntrypoint: string | EntrypointFn;
   vite: InlineConfig | ViteResolveConfig;
 }
 

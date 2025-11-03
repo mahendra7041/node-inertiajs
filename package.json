@@ -2,16 +2,6 @@
   "name": "node-inertiajs",
   "version": "1.1.2",
   "description": "A lightweight NodeJS adapter for Inertia.js that lets you build modern single-page applications with server-side rendering.",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "type": "module",
-  "scripts": {
-    "build": "npx tsc",
-    "prepare": "npm run build"
-  },
-  "files": [
-    "dist"
-  ],
   "keywords": [
     "inertiajs",
     "inertiajs-adapter",
@@ -22,22 +12,34 @@
     "fastify-inertiajs-plugin",
     "fastify-inertiajs-adapter"
   ],
-  "author": "Mahendra Chavda",
-  "license": "MIT",
-  "devDependencies": {
-    "@types/express": "^5.0.3",
-    "@types/express-session": "^1.18.2",
-    "@types/node": "^24.3.0",
-    "typescript": "^5.9.2"
-  },
-  "peerDependencies": {
-    "vite": "^7.1.3"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mahendra7041/node-inertiajs.git"
   },
+  "license": "MIT",
+  "author": "Mahendra Chavda",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "npx tsc",
+    "prepare": "npm run build"
+  },
   "dependencies": {
     "html-entities": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/express-session": "^1.18.2",
+    "@types/node": "^24.3.0",
+    "express-session": "^1.18.2",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.3"
+  },
+  "peerDependencies": {
+    "vite": "^7.1.3"
   }
 }

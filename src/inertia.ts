@@ -27,7 +27,7 @@ import {
   OptionalProp,
 } from "./props.js";
 import { InertiaHeaders } from "./headers.js";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { Adapter } from "./adapter.js";
 import type { ViteDevServer } from "vite";
 import { readFile } from "node:fs/promises";
 import { encode } from "html-entities";
@@ -45,8 +45,7 @@ export class Inertia {
   #inertiaBodyTag: string;
 
   constructor(
-    protected request: IncomingMessage,
-    protected response: ServerResponse,
+    protected adapter: Adapter,
     protected config: ResolvedConfig,
     protected vite?: ViteDevServer
   ) {
@@ -62,7 +61,9 @@ export class Inertia {
    * Check if the current request is a partial request
    */
   #isPartial(component: string) {
-    return this.request.headers[InertiaHeaders.PartialComponent] === component;
+    return (
+      this.adapter.getHeader(InertiaHeaders.PartialComponent) === component
+    );
   }
 
   /**
@@ -71,9 +72,9 @@ export class Inertia {
    * will be returned
    */
   #resolveOnly(props: PageProps) {
-    const partialOnlyHeader = this.request.headers[
+    const partialOnlyHeader = this.adapter.getHeader(
       InertiaHeaders.PartialOnly
-    ] as string | undefined;
+    ) as string | undefined;
     const only = partialOnlyHeader!.split(",").filter(Boolean);
     let newProps: PageProps = {};
 
@@ -87,9 +88,9 @@ export class Inertia {
    * Remove the props listed in the `x-inertia-partial-except` header
    */
   #resolveExcept(props: PageProps) {
-    const partialExceptHeader = this.request.headers[
+    const partialExceptHeader = this.adapter.getHeader(
       InertiaHeaders.PartialExcept
-    ] as string | undefined;
+    ) as string | undefined;
     const except = partialExceptHeader!.split(",").filter(Boolean);
 
     for (const key of except) delete props[key];
@@ -123,14 +124,17 @@ export class Inertia {
     /**
      * Keep only the props that are listed in the `x-inertia-partial-data` header
      */
-    const partialOnlyHeader = this.request.headers[InertiaHeaders.PartialOnly];
+    const partialOnlyHeader = this.adapter.getHeader(
+      InertiaHeaders.PartialOnly
+    );
     if (isPartial && partialOnlyHeader) newProps = this.#resolveOnly(props);
 
     /**
      * Remove the props that are listed in the `x-inertia-partial-except` header
      */
-    const partialExceptHeader =
-      this.request.headers[InertiaHeaders.PartialExcept];
+    const partialExceptHeader = this.adapter.getHeader(
+      InertiaHeaders.PartialExcept
+    );
     if (isPartial && partialExceptHeader)
       newProps = this.#resolveExcept(newProps);
 
@@ -170,7 +174,10 @@ export class Inertia {
       await Promise.all(
         Object.entries(props).map(async ([key, value]) => {
           if (typeof value === "function") {
-            const result = await value(this.request, this.response);
+            const result = await value(
+              this.adapter.getRequest(),
+              this.adapter.getResponse()
+            );
             return this.#resolveProp(key, result);
           }
 
@@ -209,7 +216,8 @@ export class Inertia {
    */
   #resolveMergeProps(pageProps?: PageProps) {
     const inertiaResetHeader =
-      (this.request.headers[InertiaHeaders.Reset] as string | undefined) || "";
+      (this.adapter.getHeader(InertiaHeaders.Reset) as string | undefined) ||
+      "";
     const resetProps = new Set(inertiaResetHeader.split(",").filter(Boolean));
 
     const mergeProps = Object.entries(pageProps || {})
@@ -238,7 +246,7 @@ export class Inertia {
 
     return {
       component,
-      url: this.request.url || "/",
+      url: this.adapter.getUrl() || "/",
       version: this.config.assetsVersion,
       props: await this.#resolvePageProps(propsToResolve),
       clearHistory: this.#shouldClearHistory,
@@ -290,7 +298,7 @@ export class Inertia {
     let template = await readFile(this.#resolveRootView(), "utf8");
     if (this.vite) {
       template = await this.vite.transformIndexHtml(
-        this.request.url || "/",
+        this.adapter.getUrl() || "/",
         template
       );
     }
@@ -311,7 +319,7 @@ export class Inertia {
           () => pageObject.ssrHead?.join("\n") || ""
         )
         .replace(this.#inertiaBodyTag, () => pageObject.ssrBody || "");
-      return this.response.end(html);
+      return this.adapter.html(html);
     }
 
     const id = this.config?.rootElementId || "app";
@@ -323,7 +331,7 @@ export class Inertia {
         this.#inertiaBodyTag,
         () => `<div id="${id}" data-page="${dataPage}"></div>` || ""
       );
-    return this.response.end(html);
+    return this.adapter.html(html);
   }
 
   /**
@@ -334,7 +342,7 @@ export class Inertia {
     pageProps?: TPageProps
   ) {
     const pageObject = await this.#buildPageObject(component, pageProps);
-    const isInertiaRequest = !!this.request.headers[InertiaHeaders.Inertia];
+    const isInertiaRequest = !!this.adapter.getHeader(InertiaHeaders.Inertia);
 
     if (!isInertiaRequest) {
       const shouldRenderOnServer = await this.#shouldRenderOnServer(component);
@@ -345,9 +353,8 @@ export class Inertia {
       return this.#renderView(pageObject);
     }
 
-    this.response.setHeader(InertiaHeaders.Inertia, "true");
-    this.response.setHeader("Content-Type", "application/json");
-    this.response.end(JSON.stringify(pageObject));
+    this.adapter.setHeader(InertiaHeaders.Inertia, "true");
+    this.adapter.json(pageObject);
   }
 
   /**
@@ -432,8 +439,8 @@ export class Inertia {
    */
   location(url: string) {
     url = encodeURI(url);
-    this.response.setHeader(InertiaHeaders.Location, url);
-    this.response.statusCode = 409;
+    this.adapter.setHeader(InertiaHeaders.Location, url);
+    this.adapter.setStatus(409);
   }
 
   redirect(statusOrUrl: number | string, url?: string) {
@@ -451,33 +458,12 @@ export class Inertia {
       throw new Error("Redirect URL is required");
     }
 
-    const encodedLocation = encodeURI(location);
-    const method = this.request.method || "HEAD";
+    const method = this.adapter.getMethod() || "HEAD";
     if (status === 302 && ["PUT", "PATCH", "DELETE"].includes(method)) {
       status = 303;
     }
 
-    this.response.setHeader("Vary", InertiaHeaders.Inertia);
-    this.response.statusCode = status;
-
-    // @ts-ignore
-    if (this.response.redirect) {
-      // @ts-ignore
-      return this.response.redirect(status, location);
-    }
-
-    this.response.setHeader("Location", encodedLocation);
-
-    const body = this.request?.headers["accept"]?.includes("html")
-      ? `<p>${status}. Redirecting to <a href="${encodedLocation}">${encodedLocation}</a></p>`
-      : `${status}. Redirecting to ${encodedLocation}`;
-
-    this.response.setHeader("Content-Length", Buffer.byteLength(body));
-
-    if (method === "HEAD") {
-      this.response.end();
-    } else {
-      this.response.end(body);
-    }
+    this.adapter.setHeader("Vary", InertiaHeaders.Inertia);
+    this.adapter.redirect(status, location);
   }
 }

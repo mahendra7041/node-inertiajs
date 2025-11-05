@@ -1,6 +1,6 @@
 {
   "name": "node-inertiajs",
-  "version": "1.1.2",
+  "version": "2.0.0",
   "description": "A lightweight NodeJS adapter for Inertia.js that lets you build modern single-page applications with server-side rendering.",
   "keywords": [
     "inertiajs",

@@ -360,6 +360,7 @@ export class Inertia {
       return this.#renderView(pageObject);
     }
 
+    this.adapter.setHeader("Vary", InertiaHeaders.Inertia);
     this.adapter.setHeader(InertiaHeaders.Inertia, "true");
     this.adapter.json(pageObject);
   }
